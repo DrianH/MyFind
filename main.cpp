@@ -1,5 +1,8 @@
 #include <iostream>
 #include <getopt.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 int main(int argc, char **argv) {
 
@@ -32,4 +35,11 @@ int main(int argc, char **argv) {
     std::cout << isCaseInsensitive << std::endl;
 
     return EXIT_SUCCESS;
+}
+
+void fileIterator(std::string path, std::string filename) {
+    using namespace std;
+
+    for (const auto &entry : fs::directory_iterator(path))
+        cout << entry.path() << endl;
 }
