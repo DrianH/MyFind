@@ -20,12 +20,19 @@ void fileIterator(const std::string &path, const std::string &filename) {
         cout << entry.path() << endl;
 }
 
+void printFileName(string name){
+    cout << "File: " << name << " - pid: " << getpid() << endl;
+}
+
 int main(int argc, char **argv) {
     //Terminate program with insufficient arguments
     if (argc < 3) {
         std::cerr << "insufficient argc. abort program execution" << std::endl;
         return EXIT_FAILURE;
     }
+
+    int status;
+    pid_t pid;
 
     int error = 0;
     bool cOptionR = false, cOptionI = false; //'R' = recursive, 'i' = caseInsensitive
@@ -60,43 +67,51 @@ int main(int argc, char **argv) {
                 assert(0);
         }
         if (error){
-            std::cerr << "Multiple occurrences of optional parameters" << std::endl;
+            cerr << "Multiple occurrences of opt parameters" << endl;
             return EXIT_FAILURE;
         }
     }
 
-    std::string filePath = argv[optind++];
-    std::string fileName;
+    //set path for all processes and increment optind = points to the first filename
+    string filePath = argv[optind++];
+    vector<string> fileNames;
 
-    //remember parent: var ppid binds pID from main process
-    pid_t ppid = getpid();
-    // Start children.
-    pid_t childpid = 0, pid;
-
-    //following code is NOT CORRECT. After a debugging session: the error is caused
-    //by child processes forking new processes concurrently to the main process! See debug log for
-    //further information.
-    //TODO: fix forking bug (prevent child process from forking!)
-    while(optind < argc){
-        childpid = fork();
-
-        switch (childpid) {
-            case -1:
-                cerr << "Forking failed..." << endl;
-                return EXIT_FAILURE;
-            case 0:
-                //child
-                pid = getpid();
-                fileName = argv[optind];
-                break;
-            default:
-                //parent
-                break;
-        }
-        optind++;
+    for (int i = optind; i < argc; ++i) {
+        fileNames.emplace_back(argv[i]);
     }
 
-    //cout << "Filename: " << fileName << " and pID = " << childpid << endl;
-    wait(nullptr);
+    vector<pid_t> pidVector(fileNames.size());
+
+
+    for(int i = 0; i < pidVector.size(); ++i){
+        if((pidVector[i] = fork()) < 0){
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (pidVector[i] == 0){
+            printFileName(fileNames[i]);
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    //both versions (top and bottom) work fine -> is a vector even necessary?
+    /*
+    for(;optind < argc; optind++){
+        if((pid = fork()) < 0){
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (pid == 0){
+            pid = getpid();
+            printFileName(argv[optind]);
+            exit(EXIT_SUCCESS);
+        }
+    }*/
+
+    /*int n = pidVector.size();
+    while(n > 0){
+        pid = wait(&status);
+        cout << "Child with PID " << (long)pid << " exited with status 0x" << status << endl;
+        n--;
+    }*/
+    wait(NULL);
     return EXIT_SUCCESS;
 }
