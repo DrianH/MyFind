@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
     vector<pid_t> pidVector(fileNames.size());
 
 
-    for(int i = 0; i < pidVector.size(); ++i){
+    for(long unsigned int i = 0; i < pidVector.size(); ++i){
         if((pidVector[i] = fork()) < 0){
             perror("fork");
             exit(EXIT_FAILURE);
