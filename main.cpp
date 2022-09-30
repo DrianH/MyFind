@@ -1,18 +1,22 @@
 #include <iostream>
-#include <getopt.h>
 #include <cassert>
-#include <unistd.h>
+#include <cctype>
 #include <vector>
-#include <sys/wait.h>
 #include <filesystem>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <getopt.h>
 
 using namespace std;
 
 namespace fs = std::filesystem;
 
-//for testing purposes: invoked by child processes
-void checkPID(int pid){
-    std::cout << "hello from function with id: " << getpid() << std::endl;
+char* toLower(char *currentArg){
+    char *p = currentArg;
+    for(; *p != '\0'; p++){
+        *p = tolower((*p));
+    }
+    return currentArg;
 }
 
 void fileIterator(const std::string &path, const std::string &filename) {
@@ -35,8 +39,8 @@ int main(int argc, char **argv) {
     pid_t pid;
 
     int error = 0;
-    bool cOptionR = false, cOptionI = false; //'R' = recursive, 'i' = caseInsensitive
     int opt = 0;
+    bool cOptionR = false, cOptionI = false; //'R' = recursive, 'i' = caseInsensitive
 
     //argument parsing -> permutes argv after completion!
     while ((opt = getopt(argc, argv, "Ri")) != EOF ) {
@@ -48,7 +52,7 @@ int main(int argc, char **argv) {
                     error = 1;
                     break;
                 }
-                cOptionR = 1;
+                cOptionR = true;
                 break;
             case 'i':
                 std::cout << "Option -i (case-insensitive) set!" << std::endl;
@@ -57,7 +61,7 @@ int main(int argc, char **argv) {
                     error = 1;
                     break;
                 }
-                cOptionI = 1;
+                cOptionI = true;
                 break;
             case '?':
                 error = 1;
@@ -67,7 +71,7 @@ int main(int argc, char **argv) {
                 assert(0);
         }
         if (error){
-            cerr << "Multiple occurrences of opt parameters" << endl;
+            cerr << "Multiple occurrences of opt parameters - program terminated" << endl;
             return EXIT_FAILURE;
         }
     }
@@ -77,11 +81,15 @@ int main(int argc, char **argv) {
     vector<string> fileNames;
 
     for (int i = optind; i < argc; ++i) {
-        fileNames.emplace_back(argv[i]);
+        if(cOptionI){
+            argv[i] = toLower(argv[i]);
+            fileNames.emplace_back(argv[i]);
+        } else {
+            fileNames.emplace_back(argv[i]);
+        }
     }
 
     vector<pid_t> pidVector(fileNames.size());
-
 
     for(long unsigned int i = 0; i < pidVector.size(); ++i){
         if((pidVector[i] = fork()) < 0){
