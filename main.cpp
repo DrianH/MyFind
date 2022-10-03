@@ -1,11 +1,11 @@
 #include <iostream>
 #include <cassert>
 #include <cctype>
-#include <vector>
 #include <filesystem>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -19,13 +19,36 @@ char* toLower(char *currentArg){
     return currentArg;
 }
 
-void fileIterator(const std::string &path, const std::string &filename) {
-    for (const auto &entry : fs::directory_iterator(path))
-        cout << entry.path() << endl;
+std::string str_tolower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c){ return std::tolower(c); }
+    );
+    return s;
 }
 
-void printFileName(string name){
-    cout << "File: " << name << " - pid: " << getpid() << endl;
+void searchFile(const std::string &path, const std::string &filename, bool searchRecursive, bool searchInsensitive) {
+    fs::path aPath{path};
+    if (searchRecursive){ //recursive Iteration through filesystem
+        for (const auto &entry : fs::recursive_directory_iterator(path)) {
+            string dirEntry = entry.path().filename().string();
+            if (searchInsensitive){
+                dirEntry = str_tolower(dirEntry);
+            }
+            if(dirEntry == filename){
+                cout << getpid() << " : " << filename << " : " << entry.path().string() << endl;
+            }
+        }
+    } else { // simple search in defined path
+        for (const auto &entry : fs::directory_iterator(path)){
+            string dirEntry = entry.path().filename().string();
+            if(searchInsensitive){
+                dirEntry = str_tolower(dirEntry);
+            }
+            if(dirEntry == filename){
+                cout << getpid() << " : " << filename << " : " << entry.path().string() << endl;
+            }
+        }
+    }
 }
 
 int main(int argc, char **argv) {
@@ -76,50 +99,55 @@ int main(int argc, char **argv) {
         }
     }
 
-    //set path for all processes and increment optind = points to the first filename
-    string filePath = argv[optind++];
-    vector<string> fileNames;
+    //set path for all processes
+    string filePath = argv[optind];
 
-    for (int i = optind; i < argc; ++i) {
-        if(cOptionI){
-            argv[i] = toLower(argv[i]);
-            fileNames.emplace_back(argv[i]);
-        } else {
-            fileNames.emplace_back(argv[i]);
+    //if case-insensitive search mode is set, convert
+    if(cOptionI){
+        for (int i = (optind + 1); i < argc ; ++i) {
+            argv[i] = toLower((argv[i]));
         }
     }
 
+    optind++;
+    for(;optind < argc; optind++){
+        if((pid = fork()) < 0){
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (pid == 0){
+            searchFile(filePath, argv[optind], cOptionR, cOptionI);
+            exit(EXIT_SUCCESS);
+        }
+    }
+    /*
+    vector<string> fileNames;
     vector<pid_t> pidVector(fileNames.size());
-
     for(long unsigned int i = 0; i < pidVector.size(); ++i){
         if((pidVector[i] = fork()) < 0){
             perror("fork");
             exit(EXIT_FAILURE);
         } else if (pidVector[i] == 0){
             printFileName(fileNames[i]);
+            //searchFile(filePath, fileNames[i]);
             exit(EXIT_SUCCESS);
+        }
+    }*/
+
+    //parent process waiting for child processes to finish before terminating
+    while((pid = wait(&status)) > 0){
+        if(pid == -1){
+            perror("Failed to wait for child");
+        } else if (WIFEXITED(status) && !WEXITSTATUS(status)) {
+            printf("Child %d has finished normally\n", pid);
+        } else if (WIFEXITED(status)) {
+            printf("Child %d has finished with exit code: %d\n", pid, WEXITSTATUS(status));
+        } else if (WIFSIGNALED(status)){
+            printf("Child %d has terminated du to uncaught signal: %d\n", pid, WTERMSIG(status));
+        } else if (WIFSTOPPED(status)){
+            printf("Child %d stopped due to signal: %d\n", pid, WSTOPSIG(status));
         }
     }
-
-    //both versions (top and bottom) work fine -> is a vector even necessary?
-    /*
-    for(;optind < argc; optind++){
-        if((pid = fork()) < 0){
-            perror("fork");
-            exit(EXIT_FAILURE);
-        } else if (pid == 0){
-            pid = getpid();
-            printFileName(argv[optind]);
-            exit(EXIT_SUCCESS);
-        }
-    }*/
-
-    /*int n = pidVector.size();
-    while(n > 0){
-        pid = wait(&status);
-        cout << "Child with PID " << (long)pid << " exited with status 0x" << status << endl;
-        n--;
-    }*/
-    wait(NULL);
+    //wurde nach der Aufnahme vom Video noch hinzugefügt um den Ablauf nochmal zu verdeutlichen :)
+    cout << "parent process finishing last!" << endl;
     return EXIT_SUCCESS;
 }
